@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.findhubtracker.FindHubApp
 import com.findhubtracker.util.LocationUtils
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +26,7 @@ fun TrackerDetailScreen(
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as FindHubApp
+    val scope = rememberCoroutineScope()
     var tracker by remember { mutableStateOf<com.findhubtracker.data.model.Tracker?>(null) }
 
     LaunchedEffect(trackerAddress) {
@@ -157,8 +159,10 @@ fun TrackerDetailScreen(
 
                 OutlinedButton(
                     onClick = {
-                        app.repository.deleteTracker(t)
-                        onBack()
+                        scope.launch {
+                            app.repository.deleteTracker(t)
+                            onBack()
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(

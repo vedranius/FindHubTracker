@@ -8,6 +8,7 @@ import android.util.Log
 import com.findhubtracker.data.model.GeofenceZone
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
+import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 
 class GeofenceManager(private val context: Context) {

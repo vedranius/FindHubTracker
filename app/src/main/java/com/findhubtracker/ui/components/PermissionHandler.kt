@@ -1,6 +1,8 @@
 package com.findhubtracker.ui.components
 
 import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
@@ -11,17 +13,16 @@ fun PermissionHandler(
     onAllPermissionsGranted: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
 
     var hasPermissions by remember {
         mutableStateOf(PermissionUtils.hasAllRequiredPermissions(context))
     }
 
-    val permissionLauncher = rememberPermissionLauncher(
-        onResult = { granted ->
-            hasPermissions = PermissionUtils.hasAllRequiredPermissions(context)
-        }
-    )
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        hasPermissions = PermissionUtils.hasAllRequiredPermissions(context)
+    }
 
     if (hasPermissions) {
         onAllPermissionsGranted()
@@ -44,8 +45,9 @@ fun PermissionHandler(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        if (activity != null) {
-                            PermissionUtils.requestPermissions(activity, 1001)
+                        val activity = context as? Activity
+                        activity?.let {
+                            PermissionUtils.requestPermissions(it, 1001)
                         }
                     }
                 ) {
@@ -53,22 +55,5 @@ fun PermissionHandler(
                 }
             }
         )
-    }
-}
-
-@Composable
-fun rememberPermissionLauncher(
-    onResult: (Boolean) -> Unit
-): androidx.activity.result.ActivityResultLauncher<Array<String>> {
-    val context = LocalContext.current
-    val activity = context as Activity
-
-    return remember {
-        activity.registerForActivityResult(
-            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
-        ) { permissions ->
-            val allGranted = permissions.values.all { it }
-            onResult(allGranted)
-        }
     }
 }

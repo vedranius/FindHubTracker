@@ -1,7 +1,6 @@
 package com.findhubtracker.ui.screens
 
 import android.annotation.SuppressLint
-import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,12 +13,13 @@ import com.findhubtracker.data.model.GeofenceZone
 import com.findhubtracker.ui.components.GeofenceRadiusSlider
 import com.findhubtracker.util.Constants
 import com.findhubtracker.util.LocationUtils
+import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Circle
+import org.osmdroid.views.overlay.Polygon
 import java.util.*
 
 @SuppressLint("MissingPermission")
@@ -68,13 +68,8 @@ fun MapScreen() {
                         controller.setCenter(GeoPoint(45.8150, 15.9819))
 
                         setOnLongClickListener { view ->
-                            val projection = view.projection
-                            val geoPoint = projection.fromScreenLocation(
-                                android.graphics.PointF(
-                                    (view.width / 2).toFloat(),
-                                    (view.height / 2).toFloat()
-                                )
-                            ) as GeoPoint
+                            val mapView = view as MapView
+                            val geoPoint = mapView.mapCenter as GeoPoint
                             selectedLocation = geoPoint
                             showGeofenceDialog = true
                             true
@@ -97,12 +92,11 @@ fun MapScreen() {
 
                     geofenceZones.forEach { zone ->
                         val center = GeoPoint(zone.latitude, zone.longitude)
-                        val circle = Circle().apply {
-                            this.center = center
-                            this.radius = zone.radiusMeters.toDouble()
-                            this.fillColor = 0x331A73E8.toInt()
-                            this.strokeColor = 0xFF1A73E8.toInt()
-                            this.strokeWidth = 2f
+                        val circle = Polygon().apply {
+                            points = createCirclePoints(center, zone.radiusMeters.toDouble(), 64)
+                            fillColor = 0x331A73E8.toInt()
+                            outlineColor = 0xFF1A73E8.toInt()
+                            strokeWidth = 2f
                         }
                         mapView.overlays.add(circle)
 
@@ -189,4 +183,16 @@ fun MapScreen() {
             }
         )
     }
+}
+
+private fun createCirclePoints(center: GeoPoint, radius: Double, numberOfPoints: Int): List<GeoPoint> {
+    val points = mutableListOf<GeoPoint>()
+    for (i in 0 until numberOfPoints) {
+        val angle = 2 * Math.PI * i / numberOfPoints
+        val lat = center.latitude + (radius / 111320) * Math.cos(angle)
+        val lon = center.longitude + (radius / (111320 * Math.cos(Math.toRadians(center.latitude)))) * Math.sin(angle)
+        points.add(GeoPoint(lat, lon))
+    }
+    points.add(points[0])
+    return points
 }
