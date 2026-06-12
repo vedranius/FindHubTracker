@@ -1,0 +1,20 @@
+[
+  {
+    "id": "sample-tracker-1",
+    "name": "Moji klju\u010devi",
+    "latitude": 45.815,
+    "longitude": 15.9819,
+    "timestamp": "2026-01-01T12:00:00",
+    "battery_level": 85,
+    "is_online": true
+  },
+  {
+    "id": "sample-tracker-2",
+    "name": "Torba",
+    "latitude": 45.816,
+    "longitude": 15.983,
+    "timestamp": "2026-01-01T11:30:00",
+    "battery_level": 60,
+    "is_online": true
+  }
+]
