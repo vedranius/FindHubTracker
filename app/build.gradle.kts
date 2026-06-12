@@ -70,6 +70,9 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.android.mail)
     implementation(libs.android.activation)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp.logging)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

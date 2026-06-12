@@ -16,7 +16,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.findhubtracker.FindHubApp
 import com.findhubtracker.data.model.EmailConfig
-import com.findhubtracker.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +32,11 @@ fun SettingsScreen() {
     var smtpUsername by remember { mutableStateOf(emailConfig.username) }
     var smtpPassword by remember { mutableStateOf(emailConfig.password) }
     var emailEnabled by remember { mutableStateOf(emailConfig.isEnabled) }
+
+    var serverUrl by remember { mutableStateOf(app.backendRepository.serverUrl) }
+    var autoRefresh by remember { mutableStateOf(app.backendRepository.autoRefresh) }
+    var backendRefreshInterval by remember { mutableIntStateOf(app.backendRepository.refreshInterval) }
+
     var showSaved by remember { mutableStateOf(false) }
 
     val intervalOptions = listOf(
@@ -42,6 +46,15 @@ fun SettingsScreen() {
         900_000L to "15 minuta",
         1_800_000L to "30 minuta",
         3_600_000L to "1 sat"
+    )
+
+    val backendIntervalOptions = listOf(
+        60 to "1 minuta",
+        300 to "5 minuta",
+        600 to "10 minuta",
+        900 to "15 minuta",
+        1800 to "30 minuta",
+        3600 to "1 sat"
     )
 
     Scaffold(
@@ -62,6 +75,66 @@ fun SettingsScreen() {
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            Text(
+                text = "Backend postavke",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = { serverUrl = it },
+                label = { Text("URL servera") },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("http://192.168.1.100:8000") }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Automatsko osvježavanje",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Switch(
+                    checked = autoRefresh,
+                    onCheckedChange = { autoRefresh = it }
+                )
+            }
+
+            if (autoRefresh) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Interval osvježavanja",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                backendIntervalOptions.forEach { (intervalSec, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = backendRefreshInterval == intervalSec,
+                            onClick = { backendRefreshInterval = intervalSec }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
             Text(
                 text = "Interval skeniranja",
                 style = MaterialTheme.typography.titleMedium
@@ -174,6 +247,10 @@ fun SettingsScreen() {
 
             Button(
                 onClick = {
+                    app.backendRepository.updateServerUrl(serverUrl)
+                    app.backendRepository.autoRefresh = autoRefresh
+                    app.backendRepository.refreshInterval = backendRefreshInterval
+
                     app.repository.saveEmailConfig(
                         EmailConfig(
                             recipientEmail = recipientEmail,

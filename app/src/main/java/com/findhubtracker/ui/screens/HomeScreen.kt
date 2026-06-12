@@ -13,11 +13,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.findhubtracker.FindHubApp
-import com.findhubtracker.bluetooth.BleScanner
 import com.findhubtracker.data.model.Tracker
+import com.findhubtracker.data.remote.TrackerLocation
 import com.findhubtracker.service.BleScannerService
 import com.findhubtracker.ui.components.TrackerCard
-import java.util.UUID
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +31,37 @@ fun HomeScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var manualName by remember { mutableStateOf("") }
     var manualAddress by remember { mutableStateOf("") }
+
+    var backendTrackers by remember { mutableStateOf<List<TrackerLocation>>(emptyList()) }
+    var backendStatus by remember { mutableStateOf("Nepoznato") }
+    var isLoadingBackend by remember { mutableStateOf(false) }
+    var backendError by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        isLoadingBackend = true
+        backendError = null
+        try {
+            val statusResult = app.backendRepository.getStatus()
+            statusResult.onSuccess { status ->
+                backendStatus = if (status.authenticated) "Povezan" else "Nepovezan"
+            }.onFailure { e ->
+                backendStatus = "Greška"
+                backendError = e.message
+            }
+
+            val trackersResult = app.backendRepository.getTrackers()
+            trackersResult.onSuccess { response ->
+                backendTrackers = response.trackers
+            }.onFailure { e ->
+                backendError = e.message
+            }
+        } catch (e: Exception) {
+            backendError = e.message
+        }
+        isLoadingBackend = false
+    }
 
     Scaffold(
         topBar = {
@@ -75,94 +106,205 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isServiceRunning) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BluetoothSearching,
-                        contentDescription = null,
-                        tint = if (isServiceRunning) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isServiceRunning) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceVariant
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = if (isServiceRunning) "Skeniranje u tijeku…" else "Skeniranje zaustavljeno",
-                            style = MaterialTheme.typography.bodyLarge
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BluetoothSearching,
+                            contentDescription = null,
+                            tint = if (isServiceRunning) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (trackers.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
                             Text(
-                                text = "Pronađeno: ${trackers.size} uređaja",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = if (isServiceRunning) "Skeniranje u tijeku…" else "Skeniranje zaustavljeno",
+                                style = MaterialTheme.typography.bodyLarge
                             )
+                            if (trackers.isNotEmpty()) {
+                                Text(
+                                    text = "Pronađeno: ${trackers.size} uređaja",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Backend Status",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            if (isLoadingBackend) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            } else {
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            isLoadingBackend = true
+                                            val result = app.backendRepository.refreshTrackers()
+                                            result.onSuccess {
+                                                val trackersResult = app.backendRepository.getTrackers()
+                                                trackersResult.onSuccess { response ->
+                                                    backendTrackers = response.trackers
+                                                }
+                                            }
+                                            isLoadingBackend = false
+                                        }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Osvježi")
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Status:",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = backendStatus,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = when (backendStatus) {
+                                    "Povezan" -> MaterialTheme.colorScheme.primary
+                                    "Greška" -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+
+                        if (backendError != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = backendError!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Backend trackeri: ${backendTrackers.size}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        if (backendTrackers.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        backendTrackers.forEach { bt ->
+                                            val tracker = Tracker(
+                                                address = bt.id,
+                                                name = bt.name,
+                                                brand = "FindHub",
+                                                lastLatitude = bt.latitude,
+                                                lastLongitude = bt.longitude,
+                                                lastSeenTimestamp = System.currentTimeMillis(),
+                                                rssi = 0
+                                            )
+                                            app.repository.insertOrUpdateTracker(tracker)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Sync, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Sinkroniziraj s backendom")
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                HorizontalDivider()
+            }
 
             if (trackers.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.BluetoothSearching,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Nema detektiranih trackera",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Pokrenite skeniranje ili ručno dodajte tracker",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.BluetoothSearching,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Nema detektiranih trackera",
+                                style = MaterialTheme.typography.bodyLarge,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Pokrenite skeniranje ili sinkronizirajte s backendom",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                 }
             } else {
-                Text(
-                    text = "Trackeri (${trackers.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+                item {
+                    Text(
+                        text = "Trackeri (${trackers.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
 
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(trackers) { tracker ->
-                        TrackerCard(
-                            tracker = tracker,
-                            onClick = { onTrackerClick(tracker.address) }
-                        )
-                    }
+                items(trackers) { tracker ->
+                    TrackerCard(
+                        tracker = tracker,
+                        onClick = { onTrackerClick(tracker.address) }
+                    )
                 }
             }
         }

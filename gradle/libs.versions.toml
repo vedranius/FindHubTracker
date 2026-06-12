@@ -15,6 +15,8 @@ roomKtx = "2.6.1"
 coroutines = "1.9.0"
 gson = "2.11.0"
 javaMail = "1.6.2"
+retrofit = "2.11.0"
+okhttp = "4.12.0"
 junit = "4.13.2"
 junitExt = "1.2.1"
 espressoCore = "3.6.1"
@@ -42,6 +44,9 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 android-mail = { group = "com.sun.mail", name = "android-mail", version.ref = "javaMail" }
 android-activation = { group = "com.sun.mail", name = "android-activation", version.ref = "javaMail" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitExt" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
