@@ -68,6 +68,8 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.gson)
+    implementation(libs.android.mail)
+    implementation(libs.android.activation)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

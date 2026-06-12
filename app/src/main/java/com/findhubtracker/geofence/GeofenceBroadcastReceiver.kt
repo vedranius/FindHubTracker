@@ -18,6 +18,7 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
@@ -44,56 +45,54 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 val zoneId = geofence.requestId
                 val zone = repository.getGeofenceZone(zoneId) ?: continue
 
-                val trackers = repository.allTrackers
-                trackers.collect { trackerList ->
-                    for (tracker in trackerList) {
-                        val isInside = LocationUtils.isInsideGeofence(
-                            tracker.lastLatitude, tracker.lastLongitude,
-                            zone.latitude, zone.longitude,
-                            zone.radiusMeters
-                        )
+                val trackerList = repository.allTrackers.first()
+                for (tracker in trackerList) {
+                    val isInside = LocationUtils.isInsideGeofence(
+                        tracker.lastLatitude, tracker.lastLongitude,
+                        zone.latitude, zone.longitude,
+                        zone.radiusMeters
+                    )
 
-                        val wasInside = tracker.isInsideGeofence
+                    val wasInside = tracker.isInsideGeofence
 
-                        when (transitionType) {
-                            Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                                if (wasInside) {
-                                    Log.d(TAG, "Tracker '${tracker.name}' LEFT geofence '${zone.name}'")
-                                    repository.insertOrUpdateTracker(
-                                        tracker.copy(isInsideGeofence = false)
-                                    )
-                                    showAlertNotification(
-                                        context,
-                                        tracker.name,
-                                        "je napustio geofence zonu '${zone.name}'",
-                                        tracker.lastLatitude,
-                                        tracker.lastLongitude
-                                    )
-                                    sendAlertEmail(
-                                        context,
-                                        repository,
-                                        tracker.name,
-                                        tracker.lastLatitude,
-                                        tracker.lastLongitude,
-                                        "LEFT",
-                                        zone.name
-                                    )
-                                }
+                    when (transitionType) {
+                        Geofence.GEOFENCE_TRANSITION_EXIT -> {
+                            if (wasInside) {
+                                Log.d(TAG, "Tracker '${tracker.name}' LEFT geofence '${zone.name}'")
+                                repository.insertOrUpdateTracker(
+                                    tracker.copy(isInsideGeofence = false)
+                                )
+                                showAlertNotification(
+                                    context,
+                                    tracker.name,
+                                    "je napustio geofence zonu '${zone.name}'",
+                                    tracker.lastLatitude,
+                                    tracker.lastLongitude
+                                )
+                                sendAlertEmail(
+                                    context,
+                                    repository,
+                                    tracker.name,
+                                    tracker.lastLatitude,
+                                    tracker.lastLongitude,
+                                    "LEFT",
+                                    zone.name
+                                )
                             }
-                            Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                                if (!wasInside) {
-                                    Log.d(TAG, "Tracker '${tracker.name}' ENTERED geofence '${zone.name}'")
-                                    repository.insertOrUpdateTracker(
-                                        tracker.copy(isInsideGeofence = true)
-                                    )
-                                    showAlertNotification(
-                                        context,
-                                        tracker.name,
-                                        "je ušao u geofence zonu '${zone.name}'",
-                                        tracker.lastLatitude,
-                                        tracker.lastLongitude
-                                    )
-                                }
+                        }
+                        Geofence.GEOFENCE_TRANSITION_ENTER -> {
+                            if (!wasInside) {
+                                Log.d(TAG, "Tracker '${tracker.name}' ENTERED geofence '${zone.name}'")
+                                repository.insertOrUpdateTracker(
+                                    tracker.copy(isInsideGeofence = true)
+                                )
+                                showAlertNotification(
+                                    context,
+                                    tracker.name,
+                                    "je ušao u geofence zonu '${zone.name}'",
+                                    tracker.lastLatitude,
+                                    tracker.lastLongitude
+                                )
                             }
                         }
                     }

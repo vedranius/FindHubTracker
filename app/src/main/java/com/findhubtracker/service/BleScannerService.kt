@@ -20,6 +20,7 @@ import com.findhubtracker.data.repository.TrackerRepository
 import com.findhubtracker.util.Constants
 import com.findhubtracker.util.LocationUtils
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 
 class BleScannerService : Service() {
 
@@ -123,9 +124,8 @@ class BleScannerService : Service() {
     private suspend fun checkGeofence(trackerName: String, latitude: Double, longitude: Double) {
         val zones = mutableListOf<GeofenceZone>()
 
-        repository.allGeofenceZones.collect { zoneList ->
-            zones.addAll(zoneList)
-        }
+        val zoneList = repository.allGeofenceZones.first()
+        zones.addAll(zoneList)
 
         for (zone in zones) {
             if (!zone.isActive) continue
