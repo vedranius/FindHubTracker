@@ -1,7 +1,10 @@
 import http.server
 import json
 import os
+import sys
+import ssl
 import time
+import subprocess
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime
 
@@ -39,6 +42,88 @@ def load_sample_trackers():
                     tracker_cache[t["id"]] = t
         except Exception:
             pass
+
+
+def fetch_trackers_from_findhub():
+    global tracker_cache, last_refresh
+
+    secrets_file = os.path.join(AUTH_DIR, "secrets.json")
+    if not os.path.exists(secrets_file):
+        print("[Backend] No secrets.json found, using sample data")
+        return
+
+    print("[Backend] Fetching trackers from Google Find Hub...")
+
+    script = '''
+import sys
+import json
+import os
+os.environ["PYTHONHTTPSVERIFY"] = "0"
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
+sys.path.insert(0, ".")
+from Auth.token_cache import get_cached_value_or_set
+from Auth.aas_token_retrieval import get_aas_token
+from Auth.adm_token_retrieval import get_adm_token
+from Auth.token_retrieval import get_username
+from NovaApi.nova_request import nova_request
+from NovaApi.ListDevices.nbe_list_devices import NOVA_LIST_DEVICS_API_SCOPE
+
+username = get_username()
+aas_token = get_aas_token()
+adm_token = get_adm_token(username)
+
+import requests
+import struct
+
+scope = NOVA_LIST_DEVICS_API_SCOPE
+payload = b""
+headers = {
+    "Authorization": f"Bearer {adm_token}",
+    "Content-Type": "application/x-protobuf"
+}
+
+try:
+    response = requests.post(
+        "https://android.googleapis.com/nova/nbe_list_devices",
+        headers=headers,
+        data=payload,
+        verify=False
+    )
+    
+    if response.status_code == 200:
+        print(json.dumps({"status": "ok", "data": response.text[:1000]}))
+    else:
+        print(json.dumps({"status": "error", "code": response.status_code}))
+except Exception as e:
+    print(json.dumps({"status": "error", "message": str(e)}))
+'''
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+
+        if result.returncode == 0:
+            try:
+                data = json.loads(result.stdout.strip())
+                print(f"[Backend] Result: {data}")
+            except json.JSONDecodeError:
+                print(f"[Backend] Output: {result.stdout[:500]}")
+        else:
+            print(f"[Backend] Error: {result.stderr[:500]}")
+
+    except subprocess.TimeoutExpired:
+        print("[Backend] Timeout while fetching trackers")
+    except Exception as e:
+        print(f"[Backend] Error: {e}")
+
+    last_refresh = time.time()
 
 
 class FindHubHandler(http.server.BaseHTTPRequestHandler):
@@ -87,6 +172,7 @@ class FindHubHandler(http.server.BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/refresh":
+            fetch_trackers_from_findhub()
             self.send_json({"message": "Refresh triggered"})
         else:
             self.send_error(404, "Not found")
@@ -162,6 +248,9 @@ def main():
     load_cache()
     load_sample_trackers()
 
+    import ssl as ssl_module
+    ssl_module._create_default_https_context = ssl_module._create_unverified_context
+
     host = "0.0.0.0"
     port = 8000
 
@@ -169,6 +258,13 @@ def main():
     print(f"FindHub Tracker Backend running on http://{host}:{port}")
     print(f"API docs: http://localhost:{port}/docs")
     print(f"Loaded {len(tracker_cache)} trackers")
+
+    if os.path.exists(os.path.join(AUTH_DIR, "secrets.json")):
+        print("Google Find Hub: Authenticated")
+        fetch_trackers_from_findhub()
+    else:
+        print("Google Find Hub: Not authenticated (using sample data)")
+
     print("Press Ctrl+C to stop")
 
     try:
