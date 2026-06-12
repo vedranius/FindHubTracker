@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FindHub Tracker</string>
-    <string name="google_maps_key">YOUR_API_KEY_HERE</string>
     <string name="home_title">Trackeri</string>
     <string name="map_title">Mapa</string>
     <string name="geofence_title">Geofence Zone</string>
@@ -44,5 +43,4 @@
     <string name="notification_channel_desc">Obavijesti za praćenje trackera</string>
     <string name="alert_channel_name">Geofence Alertovi</string>
     <string name="alert_channel_desc">Obavijesti kad tracker napusti zonu</string>
-    <string name="google_maps_key_placeholder">Unesite svoj Google Maps API ključ</string>
 </resources>

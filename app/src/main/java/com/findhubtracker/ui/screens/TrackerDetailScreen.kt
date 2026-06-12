@@ -126,23 +126,25 @@ fun TrackerDetailScreen(
                     onClick = {
                         val gmmIntentUri = Uri.parse("geo:${t.lastLatitude},${t.lastLongitude}?q=${t.lastLatitude},${t.lastLongitude}(${t.name})")
                         val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-                        mapIntent.setPackage("com.google.android.apps.maps")
                         context.startActivity(mapIntent)
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Map, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Otvori u Google Maps")
+                    Text("Otvori u karti")
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
                     onClick = {
-                        val mapsUrl = LocationUtils.getGoogleMapsUrl(t.lastLatitude, t.lastLongitude)
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mapsUrl))
-                        context.startActivity(intent)
+                        val shareIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, LocationUtils.getGoogleMapsUrl(t.lastLatitude, t.lastLongitude))
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Podijeli lokaciju"))
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {

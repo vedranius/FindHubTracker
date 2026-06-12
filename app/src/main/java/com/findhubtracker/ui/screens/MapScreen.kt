@@ -1,24 +1,28 @@
 package com.findhubtracker.ui.screens
 
+import android.annotation.SuppressLint
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.findhubtracker.FindHubApp
 import com.findhubtracker.data.model.GeofenceZone
-import com.findhubtracker.data.model.Tracker
 import com.findhubtracker.ui.components.GeofenceRadiusSlider
 import com.findhubtracker.util.Constants
 import com.findhubtracker.util.LocationUtils
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.*
-import com.google.maps.android.compose.*
-import kotlinx.coroutines.launch
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Circle
 import java.util.*
 
+@SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen() {
@@ -28,13 +32,14 @@ fun MapScreen() {
     val geofenceZones by app.repository.allGeofenceZones.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    var selectedLocation by remember { mutableStateOf<LatLng?>(null) }
+    var selectedLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var geofenceRadius by remember { mutableFloatStateOf(Constants.DEFAULT_GEOFENCE_RADIUS_METERS) }
     var showGeofenceDialog by remember { mutableStateOf(false) }
     var geofenceName by remember { mutableStateOf("") }
 
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(45.8150, 15.9819), 12f)
+    LaunchedEffect(Unit) {
+        Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
+        Configuration.getInstance().userAgentValue = context.packageName
     }
 
     Scaffold(
@@ -53,48 +58,66 @@ fun MapScreen() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            GoogleMap(
+            AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                onMapClick = { latLng ->
-                    selectedLocation = latLng
-                    showGeofenceDialog = true
-                },
-                uiSettings = MapUiSettings(
-                    zoomControlsEnabled = true,
-                    myLocationButtonEnabled = true
-                )
-            ) {
-                trackers.forEach { tracker ->
-                    val position = LatLng(tracker.lastLatitude, tracker.lastLongitude)
-                    Marker(
-                        state = rememberMarkerState(position = position),
-                        title = tracker.name,
-                        snippet = "${tracker.brand}\nZadnji put viđen: ${LocationUtils.formatTimestamp(tracker.lastSeenTimestamp)}",
-                        icon = BitmapDescriptorFactory.defaultMarker(
-                            if (tracker.isInsideGeofence) BitmapDescriptorFactory.HUE_RED
-                            else BitmapDescriptorFactory.HUE_ORANGE
-                        )
-                    )
-                }
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        setTileSource(TileSourceFactory.MAPNIK)
+                        setMultiTouchControls(true)
+                        controller.setZoom(12.0)
+                        controller.setCenter(GeoPoint(45.8150, 15.9819))
 
-                geofenceZones.forEach { zone ->
-                    val center = LatLng(zone.latitude, zone.longitude)
-                    Circle(
-                        center = center,
-                        radius = zone.radiusMeters.toDouble(),
-                        fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                        strokeColor = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 2f
-                    )
-                    Marker(
-                        state = rememberMarkerState(position = center),
-                        title = zone.name,
-                        snippet = "Radijus: ${zone.radiusMeters.toInt()}m",
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
-                    )
+                        setOnLongClickListener { view ->
+                            val projection = view.projection
+                            val geoPoint = projection.fromScreenLocation(
+                                android.graphics.PointF(
+                                    (view.width / 2).toFloat(),
+                                    (view.height / 2).toFloat()
+                                )
+                            ) as GeoPoint
+                            selectedLocation = geoPoint
+                            showGeofenceDialog = true
+                            true
+                        }
+                    }
+                },
+                update = { mapView ->
+                    mapView.overlays.clear()
+
+                    trackers.forEach { tracker ->
+                        val geoPoint = GeoPoint(tracker.lastLatitude, tracker.lastLongitude)
+                        val marker = Marker(mapView).apply {
+                            position = geoPoint
+                            title = tracker.name
+                            snippet = "${tracker.brand}\nZadnji put viđen: ${LocationUtils.formatTimestamp(tracker.lastSeenTimestamp)}"
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        }
+                        mapView.overlays.add(marker)
+                    }
+
+                    geofenceZones.forEach { zone ->
+                        val center = GeoPoint(zone.latitude, zone.longitude)
+                        val circle = Circle().apply {
+                            this.center = center
+                            this.radius = zone.radiusMeters.toDouble()
+                            this.fillColor = 0x331A73E8.toInt()
+                            this.strokeColor = 0xFF1A73E8.toInt()
+                            this.strokeWidth = 2f
+                        }
+                        mapView.overlays.add(circle)
+
+                        val marker = Marker(mapView).apply {
+                            position = center
+                            title = zone.name
+                            snippet = "Radijus: ${zone.radiusMeters.toInt()}m"
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        }
+                        mapView.overlays.add(marker)
+                    }
+
+                    mapView.invalidate()
                 }
-            }
+            )
         }
     }
 

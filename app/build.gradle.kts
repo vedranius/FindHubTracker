@@ -60,8 +60,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.play.services.location)
-    implementation(libs.play.services.maps)
-    implementation(libs.androidx.maps.utils)
+    implementation(libs.osmdroid.android)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
