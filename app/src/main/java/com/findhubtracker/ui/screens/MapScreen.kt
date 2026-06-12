@@ -20,6 +20,7 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
+import android.graphics.Paint
 import java.util.*
 
 @SuppressLint("MissingPermission")
@@ -94,9 +95,9 @@ fun MapScreen() {
                         val center = GeoPoint(zone.latitude, zone.longitude)
                         val circle = Polygon().apply {
                             points = createCirclePoints(center, zone.radiusMeters.toDouble(), 64)
-                            fillColor = 0x331A73E8.toInt()
-                            outlineColor = 0xFF1A73E8.toInt()
-                            strokeWidth = 2f
+                            fillPaint.color = 0x331A73E8.toInt()
+                            outlinePaint.color = 0xFF1A73E8.toInt()
+                            outlinePaint.strokeWidth = 2f
                         }
                         mapView.overlays.add(circle)
 
