@@ -15,6 +15,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.findhubtracker.FindHubApp
+import com.findhubtracker.ui.components.GeofenceRadiusSlider
+import com.findhubtracker.util.Constants
 import com.findhubtracker.util.LocationUtils
 import kotlinx.coroutines.launch
 
@@ -29,9 +31,31 @@ fun TrackerDetailScreen(
     val scope = rememberCoroutineScope()
     var tracker by remember { mutableStateOf<com.findhubtracker.data.model.Tracker?>(null) }
 
+    var geofenceEnabled by remember { mutableStateOf(false) }
+    var geofenceRadius by remember { mutableFloatStateOf(Constants.DEFAULT_GEOFENCE_RADIUS_METERS) }
+    var geofenceName by remember { mutableStateOf("") }
+    var checkInterval by remember { mutableLongStateOf(300_000L) }
+    var showIntervalMenu by remember { mutableStateOf(false) }
+
     LaunchedEffect(trackerAddress) {
-        tracker = app.repository.getTracker(trackerAddress)
+        val t = app.repository.getTracker(trackerAddress)
+        tracker = t
+        t?.let {
+            geofenceEnabled = it.geofenceEnabled
+            geofenceRadius = it.geofenceRadiusMeters
+            geofenceName = it.geofenceName
+            checkInterval = it.checkIntervalMs
+        }
     }
+
+    val intervalOptions = listOf(
+        60_000L to "1 minuta",
+        300_000L to "5 minuta",
+        600_000L to "10 minuta",
+        900_000L to "15 minuta",
+        1_800_000L to "30 minuta",
+        3_600_000L to "1 sat"
+    )
 
     Scaffold(
         topBar = {
@@ -109,8 +133,10 @@ fun TrackerDetailScreen(
                         DetailRow(
                             icon = if (t.isInsideGeofence) Icons.Default.CheckCircle else Icons.Default.Warning,
                             label = "Status geofence",
-                            value = if (t.isInsideGeofence) "Unutar zone" else "Izvan zone!",
-                            valueColor = if (t.isInsideGeofence) MaterialTheme.colorScheme.primary
+                            value = if (!t.geofenceEnabled) "Geofence onemogućen"
+                            else if (t.isInsideGeofence) "Unutar zone" else "Izvan zone!",
+                            valueColor = if (!t.geofenceEnabled) MaterialTheme.colorScheme.onSurfaceVariant
+                            else if (t.isInsideGeofence) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.error
                         )
 
@@ -123,6 +149,133 @@ fun TrackerDetailScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Geofence postavke",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Omogući geofence", style = MaterialTheme.typography.bodyLarge)
+                            Switch(
+                                checked = geofenceEnabled,
+                                onCheckedChange = { geofenceEnabled = it }
+                            )
+                        }
+
+                        if (geofenceEnabled) {
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = geofenceName,
+                                onValueChange = { geofenceName = it },
+                                label = { Text("Naziv zone") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            GeofenceRadiusSlider(
+                                radiusMeters = geofenceRadius,
+                                onRadiusChange = { geofenceRadius = it }
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text("Interval provjere", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Box {
+                                OutlinedCard(
+                                    onClick = { showIntervalMenu = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = intervalOptions.find { it.first == checkInterval }?.second ?: "5 minuta"
+                                        )
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = showIntervalMenu,
+                                    onDismissRequest = { showIntervalMenu = false }
+                                ) {
+                                    intervalOptions.forEach { (interval, label) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            onClick = {
+                                                checkInterval = interval
+                                                showIntervalMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = "Lokacija centra zone: ${LocationUtils.formatCoordinates(t.lastLatitude, t.lastLongitude)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            app.repository.updateTrackerGeofence(
+                                address = t.address,
+                                enabled = geofenceEnabled,
+                                latitude = t.lastLatitude,
+                                longitude = t.lastLongitude,
+                                radius = geofenceRadius,
+                                name = geofenceName,
+                                interval = checkInterval
+                            )
+                            tracker = app.repository.getTracker(t.address)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Spremi geofence postavke")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedButton(
                     onClick = {

@@ -59,10 +59,36 @@ class BleScanner(private val context: Context) {
             .setReportDelay(0)
             .build()
 
-        Log.d(TAG, "Starting BLE scan")
+        Log.d(TAG, "Starting BLE scan (FMDN filter)")
         scanner?.startScan(filters, settings, scanCallback)
 
-        scanJob = CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
+            delay(Constants.BLE_SCAN_TIMEOUT_MS)
+            stopScan()
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun startBroadScan(onTracker: (ScanResultData) -> Unit) {
+        if (isScanning) return
+        if (scanner == null) {
+            Log.e(TAG, "Bluetooth LE scanner not available")
+            return
+        }
+
+        onTrackerFound = onTracker
+        isScanning = true
+        discoveredTrackers.clear()
+
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setReportDelay(0)
+            .build()
+
+        Log.d(TAG, "Starting broad BLE scan (no filter)")
+        scanner?.startScan(null, settings, scanCallback)
+
+        CoroutineScope(Dispatchers.IO).launch {
             delay(Constants.BLE_SCAN_TIMEOUT_MS)
             stopScan()
         }
@@ -107,8 +133,18 @@ class BleScanner(private val context: Context) {
 
             val serviceUuids = scanRecord?.serviceUuids?.map { it.uuid } ?: emptyList()
 
-            if (TrackerUuids.isLikelyTracker(manufacturerId, serviceUuids.map { ParcelUuid.fromString(it.toString()) }, deviceName)) {
-                val brand = TrackerUuids.identifyBrand(manufacturerId, deviceName)
+            val isTracker = TrackerUuids.isLikelyTracker(
+                manufacturerId,
+                serviceUuids.map { ParcelUuid.fromString(it.toString()) },
+                deviceName
+            )
+
+            if (isTracker || rssi > -60) {
+                val brand = if (isTracker) {
+                    TrackerUuids.identifyBrand(manufacturerId, deviceName)
+                } else {
+                    deviceName ?: "BLE Device (${address.takeLast(5)})"
+                }
 
                 getCurrentLocation { location ->
                     val trackerData = ScanResultData(

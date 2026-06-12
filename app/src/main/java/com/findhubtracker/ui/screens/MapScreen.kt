@@ -15,12 +15,13 @@ import com.findhubtracker.util.Constants
 import com.findhubtracker.util.LocationUtils
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
-import android.graphics.Paint
 import java.util.*
 
 @SuppressLint("MissingPermission")
@@ -37,6 +38,7 @@ fun MapScreen() {
     var geofenceRadius by remember { mutableFloatStateOf(Constants.DEFAULT_GEOFENCE_RADIUS_METERS) }
     var showGeofenceDialog by remember { mutableStateOf(false) }
     var geofenceName by remember { mutableStateOf("") }
+    var mapViewRef by remember { mutableStateOf<MapView?>(null) }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
@@ -46,7 +48,7 @@ fun MapScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mapa") },
+                title = { Text("Mapa - držite prst za geofence") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -67,28 +69,33 @@ fun MapScreen() {
                         setMultiTouchControls(true)
                         controller.setZoom(12.0)
                         controller.setCenter(GeoPoint(45.8150, 15.9819))
+                        mapViewRef = this
 
-                        setOnLongClickListener { view ->
-                            val mapView = view as MapView
-                            val geoPoint = mapView.mapCenter as GeoPoint
-                            selectedLocation = geoPoint
-                            showGeofenceDialog = true
-                            true
+                        val mapEventsReceiver = object : MapEventsReceiver {
+                            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean = false
+                            override fun longPressHelper(p: GeoPoint): Boolean {
+                                selectedLocation = p
+                                showGeofenceDialog = true
+                                return true
+                            }
                         }
+                        overlays.add(0, MapEventsOverlay(mapEventsReceiver))
                     }
                 },
                 update = { mapView ->
-                    mapView.overlays.clear()
+                    mapView.overlays.removeAll { it is Marker || it is Polygon }
 
                     trackers.forEach { tracker ->
-                        val geoPoint = GeoPoint(tracker.lastLatitude, tracker.lastLongitude)
-                        val marker = Marker(mapView).apply {
-                            position = geoPoint
-                            title = tracker.name
-                            snippet = "${tracker.brand}\nZadnji put viđen: ${LocationUtils.formatTimestamp(tracker.lastSeenTimestamp)}"
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        if (tracker.lastLatitude != 0.0 && tracker.lastLongitude != 0.0) {
+                            val geoPoint = GeoPoint(tracker.lastLatitude, tracker.lastLongitude)
+                            val marker = Marker(mapView).apply {
+                                position = geoPoint
+                                title = tracker.name
+                                snippet = "${tracker.brand}\nZadnji put viđen: ${LocationUtils.formatTimestamp(tracker.lastSeenTimestamp)}"
+                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            }
+                            mapView.overlays.add(marker)
                         }
-                        mapView.overlays.add(marker)
                     }
 
                     geofenceZones.forEach { zone ->
@@ -100,14 +107,6 @@ fun MapScreen() {
                             outlinePaint.strokeWidth = 2f
                         }
                         mapView.overlays.add(circle)
-
-                        val marker = Marker(mapView).apply {
-                            position = center
-                            title = zone.name
-                            snippet = "Radijus: ${zone.radiusMeters.toInt()}m"
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        }
-                        mapView.overlays.add(marker)
                     }
 
                     mapView.invalidate()

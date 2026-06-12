@@ -30,6 +30,18 @@ class TrackerRepository(context: Context) {
         trackerDao.delete(tracker)
     }
 
+    suspend fun updateTrackerGeofence(
+        address: String,
+        enabled: Boolean,
+        latitude: Double,
+        longitude: Double,
+        radius: Float,
+        name: String,
+        interval: Long
+    ) {
+        trackerDao.updateGeofence(address, enabled, latitude, longitude, radius, name, interval)
+    }
+
     suspend fun insertGeofenceZone(zone: GeofenceZone) {
         geofenceDao.insertOrUpdate(zone)
     }
